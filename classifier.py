@@ -32,16 +32,19 @@ class Classifier(SavedObject):
         t = time.time()
 
         # Use multiple cpus to speed things up, but be conservative as this crashes a lot
-        cpus = multiprocessing.cpu_count() // 2
+        cpus = 2 if multiprocessing.cpu_count() > 4 else 1
         print("Using", cpus, "CPUs")
 
         # Use grid search to explore the parameter space
-        svc = GridSearchCV(estimator=svc, param_grid=param_grid, n_jobs=cpus)
+        svc = GridSearchCV(estimator=svc, param_grid=param_grid, n_jobs=cpus, verbose=10)
         svc.fit(X_train, y_train)
 
         t2 = time.time()
         print(round(t2 - t, 2), 'Seconds to train SVC...')
         self.svc = svc
+
+    def report(self, X_test, y_test):
+        return round(self.svc.score(X_test, y_test), 4)
 
     @staticmethod
     def _instance():
@@ -58,4 +61,10 @@ class Classifier(SavedObject):
         :return: the trained classifier
         """
 
-        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE)
+        obj = SavedObject._create(Classifier._instance, Classifier.SAVE_FILE)
+        test_data = TestData.default()
+        print("Classifier score", obj.report(test_data.X_test, test_data.y_test))
+
+
+if __name__ == '__main__':
+    Classifier.default()
