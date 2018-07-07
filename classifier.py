@@ -61,10 +61,14 @@ class Classifier(SavedObject):
         :return: the trained classifier
         """
 
-        obj = SavedObject._create(Classifier._instance, Classifier.SAVE_FILE)
-        test_data = TestData.default()
-        print("Classifier score", obj.report(test_data.X_test, test_data.y_test))
+        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE)
+
+
+def main():
+    classifier = Classifier.default()
+    test_data = TestData.default()
+    print("Classifier score", classifier.report(test_data.X_test, test_data.y_test))
 
 
 if __name__ == '__main__':
-    Classifier.default()
+    main()
