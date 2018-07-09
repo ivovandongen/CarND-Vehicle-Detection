@@ -102,6 +102,18 @@ class DataPreparation(SavedObject):
               'pixels per cell and', self.hog_config.cell_per_block, 'cells per block')
         print('Feature vector length:', len(self.X_train[0]))
 
+    @traced
+    def prepare_images(self, images):
+        features = extract_features(images, cspace=self.hog_config.colorspace,
+                                    orient=self.hog_config.orient,
+                                    pix_per_cell=self.hog_config.pix_per_cell,
+                                    cell_per_block=self.hog_config.cell_per_block,
+                                    hog_channel=self.hog_config.hog_channel)
+        features = np.array(features).astype(np.float64)
+        features = self.scaler.transform(features)
+
+        return features
+
     @staticmethod
     def _instance():
         print("Preparing test data")
