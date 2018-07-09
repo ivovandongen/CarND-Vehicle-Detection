@@ -31,9 +31,6 @@ class Classifier(SavedObject):
         # Create the SVM
         svc = SVC()
 
-        # Check the training time for the SVC
-        t = time.time()
-
         # Use multiple cpus to speed things up, but be conservative as this crashes a lot
         cpus = multiprocessing.cpu_count() // 2
         cpus = max(1, cpus)
@@ -43,8 +40,6 @@ class Classifier(SavedObject):
         svc = GridSearchCV(estimator=svc, param_grid=param_grid, n_jobs=cpus, verbose=10)
         svc.fit(X_train, y_train)
 
-        t2 = time.time()
-        print(round(t2 - t, 2), 'Seconds to train SVC...')
         self.svc = svc
 
     @traced
