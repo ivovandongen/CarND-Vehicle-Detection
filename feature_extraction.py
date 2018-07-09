@@ -62,7 +62,7 @@ def extract_features(imgs, cspace='RGB', orient=9,
                 hog_features = get_hog_features(feature_image[:, :, hog_channel], orient,
                                                 pix_per_cell, cell_per_block, vis=False, feature_vec=True)
         except Warning as warning:
-            print("Error in file", file, warning)
+            #print("Error in file", file, warning)
             continue
         # Append the new feature vector to the features list
         features.append(hog_features)

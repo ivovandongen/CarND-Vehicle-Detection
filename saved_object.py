@@ -1,6 +1,8 @@
 import pickle
 import os.path
 
+from tracer_decorator import traced
+
 
 class SavedObject:
     """
@@ -8,6 +10,7 @@ class SavedObject:
     """
 
     @staticmethod
+    @traced
     def _load(file_name):
         if not os.path.isfile(file_name):
             print("No such file", file_name)
@@ -17,6 +20,7 @@ class SavedObject:
             print("Loading", file_name)
             return pickle.load(f)
 
+    @traced
     def _save(self, file_name):
         with open(file_name, 'wb') as f:
             print("Saving", file_name)
@@ -24,7 +28,11 @@ class SavedObject:
 
     @staticmethod
     def _create(create_instance_f, save_file_name):
-        obj = SavedObject._load(save_file_name)
+        obj = None
+        try:
+            obj = SavedObject._load(save_file_name)
+        except Exception as e:
+            print("Could not load", save_file_name, ":", e)
 
         if obj is None:
             obj = create_instance_f()
