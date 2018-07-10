@@ -14,19 +14,23 @@ class Classifier(SavedObject):
     Encapsulates the classifier and training thereof
     """
 
-    SAVE_FILE = "classifier.p"
+    SAVE_FILE_DEFAULT = "classifier.p"
+    SAVE_FILE_LINEAR = "classifier-linear.p"
 
     def __init__(self):
         self.svc = None
 
     @traced
-    def _fit(self, X_train, y_train):
+    def _fit(self, X_train, y_train, linear=True, rbf=True):
         # Setup the parameter space to explore
-        param_grid = [
-            {'C': [1, 10, 100, 1000], 'kernel': ['linear']},
-            {'C': [1, 10, 100, 1000], 'gamma': [0.001, 0.0001], 'kernel': ['rbf']},
-            # {'C': [10, 1000], 'gamma': [0.0001], 'kernel': ['rbf']}
-        ]
+        param_grid = []
+
+        if linear:
+            param_grid.append({'C': [1, 10, 100, 1000], 'kernel': ['linear']})
+
+        if rbf:
+            param_grid.append({'C': [10, 1000], 'gamma': [0.0001], 'kernel': ['rbf']})
+            # {'C': [1, 10, 100, 1000], 'gamma': [0.001, 0.0001], 'kernel': ['rbf']}
 
         # Create the SVM
         svc = SVC()
@@ -54,11 +58,11 @@ class Classifier(SavedObject):
         return self.svc.predict(X)
 
     @staticmethod
-    def _instance():
+    def _instance(linear, rbf):
         test_data = DataPreparation.default()
         print("Preparing classifier")
         classifier = Classifier()
-        classifier._fit(test_data.X_train, test_data.y_train)
+        classifier._fit(test_data.X_train, test_data.y_train, linear=linear, rbf=rbf)
         return classifier
 
     @staticmethod
@@ -68,7 +72,16 @@ class Classifier(SavedObject):
         :return: the trained classifier
         """
 
-        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE)
+        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE_DEFAULT, {"linear": True, "rbf": True})
+
+    @staticmethod
+    def linear():
+        """
+        Use this method to obtain a linear instance
+        :return: the trained classifier
+        """
+
+        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE_LINEAR, {"linear": True, "rbf": False})
 
 
 def main():
