@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 from moviepy.editor import VideoFileClip
 from scipy.ndimage.measurements import label
 from collections import deque
@@ -7,7 +6,7 @@ from collections import deque
 from tracer_decorator import traced, enable_tracing
 from classifier import Classifier
 from data_preparation import DataPreparation, HogConfig
-from find_cars import find_cars, add_heat, apply_threshold, draw_labeled_bboxes
+from find_cars import find_cars, add_heat, apply_threshold, get_label_bboxes, draw_bboxes
 
 
 class VideoProcessor:
@@ -15,18 +14,19 @@ class VideoProcessor:
     Class to help with processing a video
     """
 
-    def __init__(self, input_file, output_file, data_prep, classifier):
+    def __init__(self, input_file, output_file, data_prep, classifier, buffer_size=3):
         self.input_file = input_file
         self.output_file = output_file
         self.data_prep = data_prep
         self.classifier = classifier
-        self.heat_buffer = deque(maxlen=5)
+        self.heat_buffer = deque(maxlen=buffer_size)
         self.labels = None
+        self.bboxes = None
         self.current_frame = 0
 
 
     @traced
-    def process(self, sub_clip=None, frame_divisor=3):
+    def process(self, sub_clip=None, frame_divisor=4):
         """
         Process the video clip
         :param frame_divisor: process one in every x frames (set to 0 or lower to disable
@@ -62,12 +62,35 @@ class VideoProcessor:
         hist_bins = data_prep.hog_config.hist_bins
 
         search_grid = [
-            (400, 496, 200, 1080, 1),
-            (400, 560, 0, 1280, 1.5),
-            (400, 600, 0, 1280, 2),
-            (400, 688, 0, 1280, 3),
-            (336, 720, 0, 1280, 4),
+            # Top detection grid
+            # (400, 448, 280, 1000, .75),
+            # (400, 496, 320, 964, 1),
+            (432, 496, 288, 996, 1),
+            (400, 496, 272, 1012, 1.5),
+
+            # Right side detection grid
+            (400, 656, 992, 1236, 1.5),
+            (400, 656, 960, 1280, 2),
+
+            # Left side detection grid
+            (400, 656, 36, 288, 1.5),
+            (400, 656, 0, 320, 2),
         ]
+
+        if self.bboxes is not None:
+            for bbox in self.bboxes:
+                padding = 20
+                minY = max(0, bbox[0][1] - padding)
+                maxY = min(img.shape[0], bbox[1][1] + padding)
+                minX = max(0, bbox[0][0] - padding)
+                maxX = min(img.shape[1], bbox[1][0] + padding)
+                # print("Adding bbox", minY, maxY, minX, maxX)
+                search_grid.append((minY, maxY, minX, maxX, 1))
+                search_grid.append((minY, maxY, minX, maxX, 1.5))
+                search_grid.append((minY, maxY, minX, maxX, 2))
+
+        if len(search_grid) > 20:
+            print("Search grid overflow", len(search_grid))
 
         boxes = []
 
@@ -110,12 +133,13 @@ class VideoProcessor:
 
     @traced
     def _process_image(self, img, frame, frame_divisor):
-        if frame_divisor <= 0 or frame % frame_divisor is 0 or self.labels is None:
+        if frame_divisor <= 0 or frame % frame_divisor is 0 or self.bboxes is None:
             # Minimize the amount of frames to process
             self.labels = self._extract_labels(img)
+            self.bboxes = get_label_bboxes(self.labels)
 
         # Draw boxes on the original image
-        return draw_labeled_bboxes(img, self.labels)
+        return draw_bboxes(img, self.bboxes)
 
 
 def main():
@@ -128,8 +152,8 @@ def main():
 
     print("Processing video", input_file, output_file)
     # processor.process(sub_clip=(12, 15))
-    # processor.process(sub_clip=(21, 26))
-    # processor.process(sub_clip=(5, 10), frame_divisor=4)
+    # processor.process(sub_clip=(21, 26), frame_divisor=4)
+    # processor.process(sub_clip=(5, 25), frame_divisor=4)
     processor.process(frame_divisor=4)
 
 

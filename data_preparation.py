@@ -13,7 +13,7 @@ class HogConfig:
     #              hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
     # def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=2, hog_channels=[0, 1, 2],
     #              hist_bins=32, hist_range=(0, 256), spatial_size=(32, 32)):
-    def __init__(self, colorspace='YCrCb', orient=12, pix_per_cell=16, cell_per_block=4, hog_channels=[0, 1, 2],
+    def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=4, hog_channels=[0, 1, 2],
                  hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
         """
         Configuration for HOG
@@ -40,7 +40,7 @@ class DataPreparation(SavedObject):
 
     SAVE_FILE = "data_preparation.p"
 
-    def __init__(self, hog_config):
+    def __init__(self, hog_config=HogConfig()):
         self.X_train = None
         self.X_test = None
         self.y_train = None
@@ -149,7 +149,7 @@ class DataPreparation(SavedObject):
     @staticmethod
     def _instance():
         print("Preparing test data")
-        data = DataPreparation(HogConfig(spatial_size=(16, 16)))
+        data = DataPreparation()
         data._init()
         return data
 

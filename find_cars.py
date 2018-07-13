@@ -29,7 +29,10 @@ def apply_threshold(heatmap, threshold):
     return heatmap
 
 
-def draw_labeled_bboxes(img, labels):
+@traced
+def get_label_bboxes(labels):
+    bboxes = list()
+
     # Iterate through all detected cars
     for car_number in range(1, labels[1] + 1):
         # Find pixels with each car_number label value
@@ -38,9 +41,16 @@ def draw_labeled_bboxes(img, labels):
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
         # Define a bounding box based on min/max x and y
-        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+        bboxes.append(((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy))))
+
+    return bboxes
+
+@traced
+def draw_bboxes(img, bboxes):
+    for bbox in bboxes:
         # Draw the box on the image
         cv2.rectangle(img, bbox[0], bbox[1], (0, 0, 255), 6)
+
     # Return the image
     return img
 
@@ -71,9 +81,14 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
 
     # Compute individual channel HOG features for the entire image
     img_hog_features = []
-    for channel in hog_channels:
-        img_hog_features.append(
-            get_hog_features(ctrans_tosearch[:, :, channel], orient, pix_per_cell, cell_per_block, feature_vec=False))
+    try:
+        for channel in hog_channels:
+          img_hog_features.append(
+              get_hog_features(ctrans_tosearch[:, :, channel], orient, pix_per_cell, cell_per_block, feature_vec=False))
+    except Exception:
+        # print(e)
+        # print(ctrans_tosearch.shape, orient, pix_per_cell, cell_per_block)
+        return []
 
     boxes = []
     for xb in range(nxsteps):
@@ -103,7 +118,7 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
                 np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))
 
             test_prediction = svc.predict(test_features)
-            # if test_prediction == 1 or test_prediction is not 1:
+            # if True:
             if test_prediction == 1:
                 xbox_left = np.int(xleft * scale)
                 ytop_draw = np.int(ytop * scale)
@@ -128,15 +143,34 @@ if __name__ == '__main__':
     spatial_size = data_prep.hog_config.spatial_size
     hist_bins = data_prep.hog_config.hist_bins
 
-    for file in glob('test_images/*'):
+    for file in glob('test_images/vlcsnap-2018-07-13-22h34m59s164.png'):
         img = mpimg.imread(file)
 
+        # search_grid = [
+        #     (400, 480, 300, 980, .75),
+        #     (400, 656, 1080, 1280, 1.5),
+        #     (400, 656, 0, 200, 1.5),
+        #     (400, 656, 1080, 1280, 2),
+        #     (400, 656, 0, 200, 2),
+        #     # (400, 560, 0, 1280, 1.5),
+        #     # (400, 600, 0, 1280, 2),
+        #     # (400, 688, 0, 1280, 3),
+        #     # (336, 720, 0, 1280, 4),
+        # ]
+
         search_grid = [
-            (400, 496, 0, 1280, 1),
-            (400, 560, 0, 1280, 1.5),
-            (400, 600, 0, 1280, 2),
-            (400, 688, 0, 1280, 3),
-            (336, 720, 0, 1280, 4),
+            # Top detection grid
+            # (412, 448, 280, 1000, .5),
+            (432, 496, 288, 996, 1),
+            (400, 496, 272, 1012, 1.5),
+
+            # Right side detection grid
+            (400, 656, 992, 1236, 1.5),
+            (400, 656, 960, 1280, 2),
+
+            # Left side detection grid
+            (400, 656, 36, 288, 1.5),
+            (400, 656, 0, 320, 2),
         ]
 
         boxes = []
@@ -154,16 +188,20 @@ if __name__ == '__main__':
             cv2.rectangle(raw_box_img, box[0], box[1], (0, 0, 255), 6)
 
         heat = np.zeros_like(img[:, :, 0]).astype(np.float)
-        # Add heat to each box in box list
 
+        # Add heat to each box in box list
         heat = add_heat(heat, boxes)
-        # Apply thresholgit
+
+        # Apply threshold
+        heat = apply_threshold(heat, 1)
+
         # Visualize the heatmap when displaying
         heatmap = np.clip(heat, 0, 255)
 
         # Find final boxes from heatmap using label function
         labels = label(heatmap)
-        draw_img = draw_labeled_bboxes(np.copy(img), labels)
+        bboxes = get_label_bboxes(labels)
+        draw_img = draw_bboxes(np.copy(img), bboxes)
         # plt.imshow(draw_img)
 
         f, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(32, 9))
