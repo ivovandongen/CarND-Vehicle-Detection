@@ -19,6 +19,8 @@ def convert_color(image, cspace):
             converted = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
         elif cspace == 'LAB':
             converted = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+        elif cspace == 'GRAY':
+            converted = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         else:
             raise Exception("Cannot convert to color space: " + cspace)
     else:
@@ -76,13 +78,12 @@ def extract_features_from_img(image, cspace='RGB', orient=9, pix_per_cell=8, cel
     hist_features = color_hist(feature_image, hist_bins, hist_range)
 
     try:
-        hog_features = []
-        for channel in hog_channels:
-            hog_features.append(get_hog_features(feature_image[:, :, channel],
+        gray_image = convert_color(image, 'GRAY')
+        hog_features = np.ravel(get_hog_features(gray_image,
                                                  orient, pix_per_cell, cell_per_block,
                                                  vis=False, feature_vec=hog_feature_vec))
-        hog_features = np.ravel(hog_features)
-    except Warning:
+    except Warning as e:
+        print("ERROR!!!", e)
         return None
 
     return np.concatenate([bin_features, hist_features, hog_features])

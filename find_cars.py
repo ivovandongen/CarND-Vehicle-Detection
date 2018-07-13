@@ -52,10 +52,12 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
     img = img.astype(np.float32) / 255
 
     img_tosearch = img[ystart:ystop, xstart:xstop, :]
+    gray_tosearch = convert_color(img_tosearch, 'GRAY')
     ctrans_tosearch = convert_color(img_tosearch, colorspace)
     if scale != 1:
         imshape = ctrans_tosearch.shape
         ctrans_tosearch = cv2.resize(ctrans_tosearch, (np.int(imshape[1] / scale), np.int(imshape[0] / scale)))
+        gray_tosearch = cv2.resize(gray_tosearch, (np.int(imshape[1] / scale), np.int(imshape[0] / scale)))
 
     # Define blocks and steps as above
     nxblocks = (ctrans_tosearch.shape[1] // pix_per_cell) - cell_per_block + 1
@@ -70,10 +72,7 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
     nysteps = (nyblocks - nblocks_per_window) // cells_per_step + 1
 
     # Compute individual channel HOG features for the entire image
-    img_hog_features = []
-    for channel in hog_channels:
-        img_hog_features.append(
-            get_hog_features(ctrans_tosearch[:, :, channel], orient, pix_per_cell, cell_per_block, feature_vec=False))
+    img_hog_features = get_hog_features(gray_tosearch, orient, pix_per_cell, cell_per_block, feature_vec=False)
 
     boxes = []
     for xb in range(nxsteps):
@@ -82,11 +81,7 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
             xpos = xb * cells_per_step
 
             # Extract HOG for this patch
-            patch_hog_features = []
-            for img_hog_features_channel in img_hog_features:
-                patch_hog_features.append(
-                    img_hog_features_channel[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel())
-            hog_features = np.hstack(patch_hog_features)
+            hog_features = img_hog_features[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
 
             xleft = xpos * pix_per_cell
             ytop = ypos * pix_per_cell
