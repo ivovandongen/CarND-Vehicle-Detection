@@ -13,7 +13,7 @@ class HogConfig:
     #              hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
     # def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=2, hog_channels=[0, 1, 2],
     #              hist_bins=32, hist_range=(0, 256), spatial_size=(32, 32)):
-    def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=4, hog_channels=[0, 1, 2],
+    def __init__(self, colorspace='YCrCb', orient=12, pix_per_cell=16, cell_per_block=4, hog_channels=[0, 1, 2],
                  hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
         """
         Configuration for HOG
@@ -90,7 +90,8 @@ class DataPreparation(SavedObject):
     @traced
     def _prepare_scaler(self):
         assert self.X_train is not None
-        self.scaler = StandardScaler(copy=False).fit(self.X_train)  # partial_fit
+        # Add no-copy and partial fit as it runs out of memory otherwise
+        self.scaler = StandardScaler(copy=False).partial_fit(self.X_train)  # partial_fit
 
     @traced
     def _split_test_data(self, X, y):

@@ -1,7 +1,6 @@
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 import cv2
 from glob import glob
 from scipy.ndimage.measurements import label
@@ -117,7 +116,7 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, p
 if __name__ == '__main__':
 
     # get attributes of our svc object
-    classifier = Classifier.linear()
+    classifier = Classifier.rbf()
     data_prep = DataPreparation.default()
     svc = classifier.svc
     X_scaler = data_prep.scaler
@@ -129,13 +128,13 @@ if __name__ == '__main__':
     spatial_size = data_prep.hog_config.spatial_size
     hist_bins = data_prep.hog_config.hist_bins
 
-    for file in glob('test_images/vlc*.png'):
+    for file in glob('test_images/*'):
         img = mpimg.imread(file)
 
         search_grid = [
-            (400, 496, 200, 1080, 1),
-            (400, 560, 100, 1180, 1.5),
-            (400, 600, 100, 1180, 2),
+            (400, 496, 0, 1280, 1),
+            (400, 560, 0, 1280, 1.5),
+            (400, 600, 0, 1280, 2),
             (400, 688, 0, 1280, 3),
             (336, 720, 0, 1280, 4),
         ]
@@ -158,9 +157,7 @@ if __name__ == '__main__':
         # Add heat to each box in box list
 
         heat = add_heat(heat, boxes)
-        # Apply threshold to help remove false positives
-        heat = apply_threshold(heat, 1)
-
+        # Apply thresholgit
         # Visualize the heatmap when displaying
         heatmap = np.clip(heat, 0, 255)
 

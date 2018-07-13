@@ -53,8 +53,8 @@ class VideoProcessor:
 
         search_grid = [
             (400, 496, 200, 1080, 1),
-            (400, 560, 100, 1180, 1.5),
-            (400, 600, 100, 1180, 2),
+            (400, 560, 0, 1280, 1.5),
+            (400, 600, 0, 1280, 2),
             (400, 688, 0, 1280, 3),
             (336, 720, 0, 1280, 4),
         ]
@@ -113,6 +113,7 @@ def main():
     print("Processing video", input_file, output_file)
     # processor.process(sub_clip=(12, 15))
     # processor.process(sub_clip=(21, 26))
+    # processor.process(sub_clip=(5, 10))
     processor.process()
 
 
