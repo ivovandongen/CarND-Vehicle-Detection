@@ -21,23 +21,33 @@ class VideoProcessor:
         self.data_prep = data_prep
         self.classifier = classifier
         self.heat_buffer = deque(maxlen=5)
+        self.labels = None
+        self.current_frame = 0
 
 
     @traced
-    def process(self, sub_clip=None):
+    def process(self, sub_clip=None, frame_divisor=3):
         """
         Process the video clip
+        :param frame_divisor: process one in every x frames (set to 0 or lower to disable
         :param sub_clip: optionally specify a sub clip (start, end)
         :return: None
         """
+        self.current_frame = 0
+
+        def handle_frame(img, t):
+            img = self._process_image(img, self.current_frame, frame_divisor)
+            self.current_frame += 1
+            return img
+
         clip = VideoFileClip(self.input_file)
         if sub_clip:
             clip = clip.subclip(sub_clip[0], sub_clip[1])
-        out_clip = clip.fl(lambda gf, t: self._process_image(gf(t), t))
+        out_clip = clip.fl(lambda gf, t: handle_frame(gf(t), t))
         out_clip.write_videofile(self.output_file, audio=False)
 
     @traced
-    def _process_image(self, img, t):
+    def _extract_labels(self, img):
         # get attributes of our svc object
         classifier = self.classifier
         data_prep = self.data_prep
@@ -63,10 +73,10 @@ class VideoProcessor:
 
         for y_start, y_stop, x_start, x_stop, scale in search_grid:
             boxes.extend(find_cars(img, y_start, y_stop, x_start, x_stop, scale,
-                          svc, X_scaler,
-                          orient, pix_per_cell, cell_per_block,
-                          colorspace, hog_channels,
-                          spatial_size, hist_bins))
+                                   svc, X_scaler,
+                                   orient, pix_per_cell, cell_per_block,
+                                   colorspace, hog_channels,
+                                   spatial_size, hist_bins))
 
         # heat = self.last_heat if self.last_heat is not None else np.zeros_like(img[:, :, 0]).astype(np.float)
         heat = np.zeros_like(img[:, :, 0]).astype(np.float)
@@ -96,10 +106,16 @@ class VideoProcessor:
         self.heat_buffer.appendleft(heat)
 
         # Find final boxes from heatmap using label function
-        labels = label(heatmap)
+        return label(heatmap)
+
+    @traced
+    def _process_image(self, img, frame, frame_divisor):
+        if frame_divisor <= 0 or frame % frame_divisor is 0 or self.labels is None:
+            # Minimize the amount of frames to process
+            self.labels = self._extract_labels(img)
 
         # Draw boxes on the original image
-        return draw_labeled_bboxes(img, labels)
+        return draw_labeled_bboxes(img, self.labels)
 
 
 def main():
@@ -113,8 +129,8 @@ def main():
     print("Processing video", input_file, output_file)
     # processor.process(sub_clip=(12, 15))
     # processor.process(sub_clip=(21, 26))
-    # processor.process(sub_clip=(5, 10))
-    processor.process()
+    # processor.process(sub_clip=(5, 10), frame_divisor=4)
+    processor.process(frame_divisor=4)
 
 
 if __name__ == '__main__':
