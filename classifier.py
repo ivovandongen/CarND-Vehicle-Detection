@@ -16,6 +16,7 @@ class Classifier(SavedObject):
 
     SAVE_FILE_DEFAULT = "classifier.p"
     SAVE_FILE_LINEAR = "classifier-linear.p"
+    SAVE_FILE_RBF = "classifier-rbf.p"
 
     def __init__(self):
         self.svc = None
@@ -82,6 +83,15 @@ class Classifier(SavedObject):
         """
 
         return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE_LINEAR, {"linear": True, "rbf": False})
+
+    @staticmethod
+    def rbf():
+        """
+        Use this method to obtain an rbf instance
+        :return: the trained classifier
+        """
+
+        return SavedObject._create(Classifier._instance, Classifier.SAVE_FILE_RBF, {"linear": False, "rbf": True})
 
 
 def main():

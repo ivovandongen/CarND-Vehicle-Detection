@@ -4,13 +4,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 from saved_object import SavedObject
-from feature_extraction import extract_features
+from feature_extraction import extract_features, extract_features_from_img
 from tracer_decorator import traced
 
 
 class HogConfig:
-
-    def __init__(self, colorspace='YUV', orient=9, pix_per_cell=8, cell_per_block=2, hog_channel='ALL'):
+    # def __init__(self, colorspace='YUV', orient=9, pix_per_cell=16, cell_per_block=4, hog_channels=[1, 2],
+    #              hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
+    # def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=2, hog_channels=[0, 1, 2],
+    #              hist_bins=32, hist_range=(0, 256), spatial_size=(32, 32)):
+    def __init__(self, colorspace='YCrCb', orient=9, pix_per_cell=16, cell_per_block=4, hog_channels=[0, 1, 2],
+                 hist_bins=64, hist_range=(0, 256), spatial_size=(16, 16)):
         """
         Configuration for HOG
         :param colorspace: Can be RGB, HSV, LUV, HLS, YUV, YCrCb
@@ -23,7 +27,10 @@ class HogConfig:
         self.orient = orient
         self.pix_per_cell = pix_per_cell
         self.cell_per_block = cell_per_block
-        self.hog_channel = hog_channel
+        self.hog_channels = hog_channels
+        self.hist_bins = hist_bins
+        self.hist_range = hist_range
+        self.spatial_size = spatial_size
 
 
 class DataPreparation(SavedObject):
@@ -51,16 +58,26 @@ class DataPreparation(SavedObject):
         cars = glob.glob('training_data/vehicles/*/*.png')
         notcars = glob.glob('training_data/non-vehicles/*/*.png')
 
+        print("Training data", "positive", len(cars), "negative", len(notcars))
+
         car_features = extract_features(cars, cspace=self.hog_config.colorspace,
                                         orient=self.hog_config.orient,
                                         pix_per_cell=self.hog_config.pix_per_cell,
                                         cell_per_block=self.hog_config.cell_per_block,
-                                        hog_channel=self.hog_config.hog_channel)
+                                        hog_channels=self.hog_config.hog_channels,
+                                        spatial_size=self.hog_config.spatial_size,
+                                        hist_bins=self.hog_config.hist_bins,
+                                        hist_range=self.hog_config.hist_range)
         notcar_features = extract_features(notcars, cspace=self.hog_config.colorspace,
                                            orient=self.hog_config.orient,
                                            pix_per_cell=self.hog_config.pix_per_cell,
                                            cell_per_block=self.hog_config.cell_per_block,
-                                           hog_channel=self.hog_config.hog_channel)
+                                           hog_channels=self.hog_config.hog_channels,
+                                           spatial_size=self.hog_config.spatial_size,
+                                           hist_bins=self.hog_config.hist_bins,
+                                           hist_range=self.hog_config.hist_range)
+
+        print("Training data after feature extraction", "positive", len(car_features), "negative", len(notcar_features))
 
         # Create an array stack of feature vectors
         X = np.vstack((car_features, notcar_features)).astype(np.float64)
@@ -108,8 +125,22 @@ class DataPreparation(SavedObject):
                                     orient=self.hog_config.orient,
                                     pix_per_cell=self.hog_config.pix_per_cell,
                                     cell_per_block=self.hog_config.cell_per_block,
-                                    hog_channel=self.hog_config.hog_channel)
+                                    hog_channels=self.hog_config.hog_channels,
+                                    hog_feature_vec=False)
         features = np.array(features).astype(np.float64)
+        features = self.scaler.transform(features)
+
+        return features
+
+    @traced
+    def prepare_image(self, image):
+        features = extract_features_from_img(image, cspace=self.hog_config.colorspace,
+                                             orient=self.hog_config.orient,
+                                             pix_per_cell=self.hog_config.pix_per_cell,
+                                             cell_per_block=self.hog_config.cell_per_block,
+                                             hog_channels=self.hog_config.hog_channels,
+                                             hog_feature_vec=False)
+        features = np.array([features]).astype(np.float64)
         features = self.scaler.transform(features)
 
         return features
@@ -117,7 +148,7 @@ class DataPreparation(SavedObject):
     @staticmethod
     def _instance():
         print("Preparing test data")
-        data = DataPreparation(HogConfig())
+        data = DataPreparation(HogConfig(spatial_size=(16, 16)))
         data._init()
         return data
 
