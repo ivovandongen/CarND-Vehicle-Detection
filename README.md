@@ -1,18 +1,7 @@
-# Vehicle Detection
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+## Vehicle Detection Project
 
+Project 5 in term 1 of the Udacity self-driving car nano-degree
 
-In this project, your goal is to write a software pipeline to detect vehicles in a video (start with the test_video.mp4 and later implement on full project_video.mp4), but the main output or product we want you to create is a detailed writeup of the project.  Check out the [writeup template](https://github.com/udacity/CarND-Vehicle-Detection/blob/master/writeup_template.md) for this project and use it as a starting point for creating your own writeup.  
-
-Creating a great writeup:
----
-A great writeup should include the rubric points as well as your description of how you addressed each point.  You should include a detailed description of the code used in each step (with line-number references and code snippets where necessary), and links to other supporting documents or external references.  You should include images in your writeup to demonstrate how your code works with examples.  
-
-All that said, please be concise!  We're not looking for you to write a book here, just a brief description of how you passed each rubric point, and references to the relevant code :). 
-
-You can submit your writeup in markdown or use another method and submit a pdf instead.
-
-The Project
 ---
 
 The goals / steps of this project are the following:
@@ -24,14 +13,135 @@ The goals / steps of this project are the following:
 * Run your pipeline on a video stream (start with the test_video.mp4 and later implement on full project_video.mp4) and create a heat map of recurring detections frame by frame to reject outliers and follow detected vehicles.
 * Estimate a bounding box for vehicles detected.
 
-Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.   You are welcome and encouraged to take advantage of the recently released [Udacity labeled dataset](https://github.com/udacity/self-driving-car/tree/master/annotations) to augment your training data.  
+### Histogram of Oriented Gradients (HOG)
 
-Some example images for testing your pipeline on single frames are located in the `test_images` folder.  To help the reviewer examine your work, please save examples of the output from each stage of your pipeline in the folder called `ouput_images`, and include them in your writeup for the project by describing what each image shows.    The video called `project_video.mp4` is the video your pipeline should work well on.  
+#### 1. Extracting HOG features from the training images.
 
-**As an optional challenge** Once you have a working pipeline for vehicle detection, add in your lane-finding algorithm from the last project to do simultaneous lane-finding and vehicle detection!
+The code for this step is contained in [lines 51-66 of features_extraction.py](https://github.com/ivovandongen/CarND-Vehicle-Detection/blob/master/feature_extraction.py#L51-L66)
 
-**If you're feeling ambitious** (also totally optional though), don't stop there!  We encourage you to go out and take video of your own, and show us how you would implement this project on a new video!
+I started by reading in all the `vehicle` and `non-vehicle` images.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+![png](training_data/vehicles/KITTI_extracted/1.png)
+![png](training_data/non-vehicles/GTI/image1.png)
+
+I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
+
+Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
+![png](examples/hog_8_8_2_YCrCb_15.png)
+
+In contrast, here is the same parameters, but in `HLS` color space
+![png](examples/hog_8_8_2_HLS_15.png)
+
+
+#### 2. Final choice of HOG parameters.
+
+I tried various combinations of parameters and mostly tried to strike a balance
+between accuracy and performance. Using a large set of features would slow down processing
+a lot, so a minimum was chosen that still performed well. Additionally,
+a large feature set also would lead to memory issues. This was partially solved by using
+a partial fit on the scaler. 
+
+The final HOG parameters I settled on were:
+- color space: 'YCrCb'
+- orient: 9
+- pixels per cell: 16 
+- cells per block: 4 
+- hog channels: all
+
+Which would result in:
+![png](examples/hog_9_16_4_YCrCb_15.png)
+
+#### 3. Training the classifier using selected HOG and color features
+
+I trained a linear SVM using GridSearchCV to explore which combination of parameters would give me the
+best fit in [Classifier_fit()](https://github.com/ivovandongen/CarND-Vehicle-Detection/blob/master/classifier.py#L25-L48)
+
+I explored both linear and rbf kernels and ended up using rbf even though it is much slower than a linear svm. The linear svm
+gave too many false positives to work with and I preferred optimising in other areas. Especially since HOG feature extraction
+weighed much heavier on the overall processing time.
+
+The dataset was processed to extract HOG features, color histograms and spatial binning before leveling the features and training
+the SVM's on it. To verify the svm, the test set was split in a training and test set.
+
+
+### Sliding Window Search
+
+For the sliding window I initially used overlapping windows with different scales over the entire lower half of the image 
+(the relevant part where we would expect cars). The boxes ranged from the smallest a car would be on the horizon to the largest
+a car would appear directly next or in front of the camera. This is an accurate, but impossibly slow way to search the images.
+
+![png](examples/windows_full_grid.jpg)
+
+I then went on to defined multiple regions with different scales. Only using the smallest scales near the horizon and working
+down in increasingly large windows. This certainly sped up the detection. But not quite enough still.
+
+![png](examples/windows_multi_scale_grid.jpg)
+
+For the video processing I eventually settled on a search grid that just covered the outer edges of the frame, where you would
+expect cars to enter the view. The video processing would then track cars over frames by adding search grids for positive detections
+(read more further down). This gave a more reasonable performance.
+
+![png](examples/windows_edges_grid.jpg)
+
+To further optimize the window search, I tweaked the spatial size of the binned colors and the size
+of the histograms. Also iterating on the HOG detection a lot since the initial choices were mostly 
+focused on accurate representation, which was much too slow in this stage.
+
+Ultimately I searched on 3 scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result.
+
+A final optimization, which was very impactful, was to only process one in every 4 frames in the video and
+re-use the detections in the other. With 25 FPS, this is hardly noticeable in the end-result, but did speed up
+processing so that it can realistically be used in real time.
+
+### Video Implementation
+
+#### 1.Final video output.
+Here's a [link to my video result](output_videos/processed_project_video.mp4)
+
+[![IMAGE ALT TEXT HERE](http://img.youtube.com/vi/KbStu1zy9bA/0.jpg)](http://www.youtube.com/watch?v=KbStu1zy9bA)
+
+
+#### 2. Identification of false positives and handling of overlapping boxes
+
+To deal with false positives and overlapping bounding boxes a history of heatmaps per frame is kept and used as a rolling
+average. With the build-up of history, the threshold on the heatmap is also increased, making sure that random glitches don't
+show up in the end-result. False positives are filtered out this way as they usually don't show up multiple frames in a row. 
+The code for the heatmap history processing can be found in [lines 113-123 of video_processor.py](https://github.com/ivovandongen/CarND-Vehicle-Detection/blob/master/video_processor.py#L113-L123)
+
+For ever x'th frame (depending on the frame division setting):
+- A search grid is built, using the main search grid plus a grid per previous detection
+- The grid is searched for matches
+- The resulting matches are turned into a heatmap (this is later stored in the history)
+- The heatmap is combined with the previous heatmaps, increasing the threshold for every heatmap in the history
+- The resulting heatmap is thresholded with the incremented threshold value
+- Labels are then generated from this heatmap using `scipy.ndimage.measurements.label()`
+- The resulting labels are plotted on the original image
+
+For every other frame (where we don't run detection) the previous labels are just plotted. This is visually not detectable
+as a slight lag of the box behind the car sometimes, but greatly increases the speed of processing.
+
+Here's an example result showing the heatmap from a series of frames of video. In these frames you initially only
+see the main search grid. Then as a vehicle is detected, an additional grid is added to ensure solid tracking. Once
+enough frames show overlapping detections, the vehicle is determined to be a true positive and is included
+in the output.
+
+![frame](examples/video_frame_44.png)
+![frame](examples/video_frame_48.png)
+![frame](examples/video_frame_52.png)
+![frame](examples/video_frame_56.png)
+![frame](examples/video_frame_60.png)
+![frame](examples/video_frame_64.png)
+
+
+---
+
+### Discussion
+
+The resulting pipeline works well on the project video. However, in realistic scenarios it will fail on a number of conditions:
+- Different lighting / weather conditions. Manual feature extraction is proved fragile still to changing conditions
+- Reset during operation. As I use a detection window on the edges, any car that does not enter through these edges will not be 
+detected. If for some reason the detection would only start in mid traffic, an initialization phase would need to be used where a
+full grid is searched.
+- The resulting pipeline operates well at around 8-10 FPS on a decent laptop. This is however way to intensive for any kind of mobile
+/ embedded situation. To use these techniques in these scenarios, hardware acceleration would be a must.
 
